@@ -9,24 +9,98 @@ data LinkedList a = Null | ListNode a (LinkedList a) deriving (Show, Eq)
 --Category: Easy
 
 -- Question 1
-targetSum :: [Int] -> Int ->[[Int]]
-targetSum = undefined
+targetSum :: [Int] -> Int -> [[Int]]
+targetSum [] _ = []
+targetSum lst target = sortPairs $ myFilter (\[x, y] -> x >= y) $ uniquePairs lst target
+
+uniquePairs :: [Int] -> Int -> [[Int]]
+uniquePairs [] _ = []
+uniquePairs (x:xs) target =
+  [if x > y then [x, y] else [y, x] | y <- xs, x + y == target] ++ uniquePairs xs target
+
+sortPairs :: [[Int]] -> [[Int]]
+sortPairs [] = []
+sortPairs (x:xs) = insertSorted x (sortPairs xs)
+
+insertSorted :: [Int] -> [[Int]] -> [[Int]]
+insertSorted x [] = [x]
+insertSorted x@(x1:_) ys@(y@(y1:_):ys')
+  | x1 < y1 || (x1 == y1 && (length x > 1 && length y > 1 && x !! 1 <= y !! 1)) = x : ys
+  | otherwise = y : insertSorted x ys'
+
+myFilter :: ([Int] -> Bool) -> [[Int]] -> [[Int]]
+myFilter _ [] = []
+myFilter pred (x:xs)
+  | pred x    = x : myFilter pred xs
+  | otherwise = myFilter pred xs
+
 
 -- Question 2
 symmetricTree :: Eq a => Tree a -> Bool
-symmetricTree = undefined
+symmetricTree Nil = True
+symmetricTree(TreeNode left _ right) = isMirror left right
+  where
+    isMirror :: Eq a => Tree a -> Tree a -> Bool
+    isMirror Nil Nil = True
+    isMirror (TreeNode l1 v1 r1) (TreeNode l2 v2 r2) = v1 == v2 && isMirror l1 r2 && isMirror r1 l2
+    isMirror _ _ = False
 
 -- Question 3
 palindromList :: Eq a => LinkedList a -> Bool
-palindromList = undefined
+palindromList list = let regularList = toList list
+                    in regularList == reverse regularList
+  where
+    toList :: LinkedList a -> [a]
+    toList Null = []
+    toList (ListNode x xs) = x : toList xs
 
 -- Question 4
+appendTo :: [a] -> a -> [a]
+appendTo [] x = [x]
+appendTo (y:ys) x = y : appendTo ys x
+
+-- Function to reverse a list
+reverseList :: [a] -> [a]
+reverseList [] = []
+reverseList (x:xs) = appendTo (reverseList xs) x
+
+-- Get the next level of nodes
+nextLevel :: [Tree a] -> [Tree a]
+nextLevel [] = []
+nextLevel (Nil:xs) = nextLevel xs
+nextLevel (TreeNode l _ r:xs) = l : r : nextLevel xs
+
+-- Get the values of the current level
+valuesAtLevel :: [Tree a] -> [a]
+valuesAtLevel [] = []
+valuesAtLevel (Nil:xs) = valuesAtLevel xs
+valuesAtLevel (TreeNode _ a _:xs) = a : valuesAtLevel xs
+
+-- Function to perform snake traversal on a tree
 snakeTraversal :: Tree a -> [a]
-snakeTraversal = undefined
+snakeTraversal Nil = []
+snakeTraversal tree = traverse [tree] True
+  where
+    traverse [] _ = []
+    traverse level ltr = 
+      let vals = valuesAtLevel level
+          valsInOrder = if ltr then vals else reverseList vals
+      in valsInOrder ++ traverse (nextLevel level) (not ltr)
+
 
 -- Question 5
 treeConstruction :: String -> Tree Char
-treeConstruction = undefined
+treeConstruction str = fst $ buildTree str Nil where
+  buildTree :: String -> Tree Char -> (Tree Char, String)
+  buildTree [] tree = (tree, [])
+  buildTree ('^':xs) tree = (tree, xs)
+  buildTree (x:xs) Nil = buildTree xs (TreeNode Nil x Nil)
+  buildTree (x:xs) (TreeNode left val right)
+    | left == Nil = let (newLeft, rest) = buildTree xs (TreeNode Nil x Nil)
+                    in buildTree rest (TreeNode newLeft val right)
+    | otherwise   = let (newRight, rest) = buildTree xs (TreeNode Nil x Nil)
+                    in (TreeNode left val newRight, rest)
+
 
 
 -- Category: Medium
@@ -34,22 +108,67 @@ treeConstruction = undefined
 -- Attempy any 4 questions from this category
 
 -- Question 1.1: Overload the (+) operator for Tree. You only need to overload (+). Keep the rest of the operators as undefined.   
-instance Num (Tree Int) where
-    (+) = undefined
-    (*) = undefined
-    abs = undefined
-    signum = undefined
-    fromInteger = undefined
-    negate = undefined
+instance Num a => Num (Tree a) where
+  (+) = treeAdd
+  -- These instances are needed to satisfy Num but are not meaningful for Tree.
+  (-) = \_ _ -> Nil
+  (*) = \_ _ -> Nil
+  abs = const Nil
+  signum = const Nil
+  fromInteger = const Nil
+
+-- Define how two trees are added together
+treeAdd :: Num a => Tree a -> Tree a -> Tree a
+treeAdd Nil b = b
+treeAdd a Nil = a
+treeAdd (TreeNode aLeft aVal aRight) (TreeNode bLeft bVal bRight) =
+  TreeNode (treeAdd aLeft bLeft) (aVal + bVal) (treeAdd aRight bRight)
+
 
 -- Question 1.2
 
-longestCommonString :: LinkedList Char -> LinkedList Char -> LinkedList Char
-longestCommonString = undefined
+longestCommonString :: Eq a => LinkedList a -> LinkedList a -> LinkedList a
+longestCommonString l1 l2 = maximumByLength [commonSubstring a b | a <- tails l1, b <- tails l2]
+  where
+    -- Find the common substring from the start of two lists
+    commonSubstring :: Eq a => LinkedList a -> LinkedList a -> LinkedList a
+    commonSubstring Null _ = Null
+    commonSubstring _ Null = Null
+    commonSubstring (ListNode x xs) (ListNode y ys)
+        | x == y = ListNode x (commonSubstring xs ys)
+        | otherwise = Null
+
+    -- Generate all tails of a list (all possible starting points for substrings)
+    tails :: LinkedList a -> [LinkedList a]
+    tails Null = [Null]
+    tails l@(ListNode _ xs) = l : tails xs
+
+    -- Select the maximum length list from a list of lists
+    maximumByLength :: [LinkedList a] -> LinkedList a
+    maximumByLength [] = Null
+    maximumByLength (x:xs) = foldl (\acc y -> if listLength y > listLength acc then y else acc) x xs
+
+    -- Calculate the length of a LinkedList
+    listLength :: LinkedList a -> Int
+    listLength Null = 0
+    listLength (ListNode _ xs) = 1 + listLength xs
 
 -- Question 2
-commonAncestor :: Ord a => Eq a => Tree a -> a -> a -> Maybe a
-commonAncestor = undefined
+existsInTree :: (Ord a) => Tree a -> a -> Bool
+existsInTree Nil _ = False
+existsInTree (TreeNode left val right) x
+  | x == val = True
+  | x < val = existsInTree left x
+  | otherwise = existsInTree right x
+
+commonAncestor :: (Ord a) => Tree a -> a -> a -> Maybe a
+commonAncestor Nil _ _ = Nothing
+commonAncestor tree@(TreeNode left val right) p q
+  | not (existsInTree tree p && existsInTree tree q) = Nothing
+  | val == p || val == q = Just val
+  | p < val && q < val = commonAncestor left p q
+  | p > val && q > val = commonAncestor right p q
+  | otherwise = Just val
 
 -- Question 3
 gameofLife :: [[Int]] -> [[Int]]
@@ -57,7 +176,13 @@ gameofLife = undefined
 
 -- Question 4
 waterCollection :: [Int] -> Int
-waterCollection = undefined
+waterCollection heights = (*2) $ sum $ map calculateWater [1 .. length heights - 2]
+  where
+    calculateWater i = let
+      leftMax = maximum $ take i heights
+      rightMax = maximum $ drop (i + 1) heights
+      in max 0 (min leftMax rightMax - (heights !! i))
+
 
 -- Question 5
 minPathMaze :: [[Int]] -> Int
@@ -138,7 +263,7 @@ main =
     -- Test Longest Common String
         describe "longestCommonString" $ do
             it "should return the longest common string" $ do
-                longestCommonString Null Null `shouldBe` Null
+                longestCommonString (Null::LinkedList Char) (Null::LinkedList Char) `shouldBe` Null
                 longestCommonString (ListNode 'a' (ListNode 'b' (ListNode 'c' (ListNode 'd' (ListNode 'e' Null))))) Null `shouldBe` Null
                 longestCommonString Null (ListNode 'a' (ListNode 'b' (ListNode 'c' (ListNode 'd' (ListNode 'e' Null))))) `shouldBe` Null
                 longestCommonString (ListNode 'a' (ListNode 'b' (ListNode 'c' (ListNode 'd' (ListNode 'e' Null))))) (ListNode 'a' (ListNode 'b' (ListNode 'c' (ListNode 'd' (ListNode 'e' Null))))) `shouldBe` ListNode 'a' (ListNode 'b' (ListNode 'c' (ListNode 'd' (ListNode 'e' Null))))
